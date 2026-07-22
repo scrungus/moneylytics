@@ -1,11 +1,11 @@
 """Aggregation queries.
 
-Spend semantics: everything except Income and Excluded counts as spend
-(negative amounts spend, positive refunds net against it). Linked pairs
-(internal transfers, refunds) naturally cancel out because both sides are
-present. Transfers to your own external accounts (e.g. savings) show up as
-spend until recategorized -- override them to 'Savings' or 'Excluded' once
-and the rule sticks.
+Spend semantics: everything except Income, Excluded, and Transfer counts as
+spend (negative amounts spend, positive refunds net against it). Linked
+pairs (refunds) naturally cancel out because both sides are present. The
+'Transfer' category is Emma's internal-money-movement bucket -- e.g. cash
+coming back from your own savings account -- and belongs in neither income
+nor spend. Transfers Emma left as 'General' (rent!) still count as spend.
 """
 
 from collections import defaultdict
@@ -22,6 +22,9 @@ EFFECTIVE_CAT = case(
     else_=Transaction.category_emma,
 ).label("category")
 
+NON_SPEND_CATS = ["Income", "Excluded", "Transfer"]
+
+
 def month_expr(db: Session):
     if db.bind.dialect.name == "sqlite":
         return func.strftime("%Y-%m", Transaction.date)
@@ -35,7 +38,7 @@ def overview(db: Session, months: int = 12) -> list[dict]:
             m.label("month"),
             func.sum(case((EFFECTIVE_CAT == "Income", Transaction.amount), else_=0)).label("income"),
             func.sum(case(
-                (EFFECTIVE_CAT.notin_(["Income", "Excluded"]), -Transaction.amount),
+                (EFFECTIVE_CAT.notin_(NON_SPEND_CATS), -Transaction.amount),
                 else_=0,
             )).label("spend"),
         )
@@ -56,8 +59,8 @@ def categories(db: Session, month: str | None = None, months: int = 12) -> dict:
     m = month_expr(db)
     q = (
         db.query(m.label("month"), EFFECTIVE_CAT, func.sum(-Transaction.amount).label("spend"))
-        .filter(EFFECTIVE_CAT.notin_(["Income", "Excluded"]))
-        .group_by("month", "category")
+        .filter(EFFECTIVE_CAT.notin_(NON_SPEND_CATS))
+        .group_by(m, EFFECTIVE_CAT)
         .order_by(m)
     )
     by_month: dict[str, dict[str, float]] = defaultdict(dict)
@@ -81,13 +84,15 @@ def merchants(db: Session, month: str | None = None, category: str | None = None
     q = (
         db.query(key, func.sum(-Transaction.amount).label("spend"),
                  func.count().label("count"))
-        .filter(EFFECTIVE_CAT.notin_(["Income", "Excluded"]))
+        .filter(EFFECTIVE_CAT.notin_(NON_SPEND_CATS))
     )
     if month:
         q = q.filter(m == month)
     if category:
         q = q.filter(EFFECTIVE_CAT == category)
-    q = q.group_by("merchant").order_by(func.sum(-Transaction.amount).desc()).limit(limit)
+    # group by the expression itself: the string "merchant" would resolve to
+    # the raw transactions.merchant column, lumping all blank merchants together
+    q = q.group_by(key).order_by(func.sum(-Transaction.amount).desc()).limit(limit)
     return [
         {"merchant": r.merchant or "(unknown)",
          "spend": round(float(r.spend or 0), 2), "count": r.count}
@@ -142,26 +147,57 @@ def subscriptions(db: Session) -> list[dict]:
     txs = (
         db.query(Transaction)
         .filter(Transaction.amount < 0)
-        .filter(EFFECTIVE_CAT.notin_(["Income", "Excluded"]))
+        .filter(EFFECTIVE_CAT.notin_(NON_SPEND_CATS))
         .order_by(Transaction.date)
         .all()
     )
-    groups: dict[tuple, list[Transaction]] = defaultdict(list)
+    by_merchant: dict[str, list[Transaction]] = defaultdict(list)
     for t in txs:
         k = t.merchant_key
-        if not k:
-            continue
-        groups[(k, round(float(t.amount)))].append(t)
+        if k:
+            by_merchant[k].append(t)
+
+    # Cluster each merchant's charges by amount (12% or £1 tolerance) so a
+    # subscription whose price drifts by pennies stays one entry instead of
+    # one entry per distinct amount.
+    groups: dict[tuple, list[Transaction]] = {}
+    for merchant, items in by_merchant.items():
+        clusters: list[list[Transaction]] = []
+        for t in sorted(items, key=lambda t: float(t.amount)):
+            amt = -float(t.amount)
+            for c in clusters:
+                mean = sum(-float(x.amount) for x in c) / len(c)
+                if abs(amt - mean) <= max(1.0, 0.12 * mean):
+                    c.append(t)
+                    break
+            else:
+                clusters.append([t])
+        for i, c in enumerate(clusters):
+            groups[(merchant, i)] = sorted(c, key=lambda t: t.date)
 
     subs = []
     today = date.today()
     for (merchant, _), items in groups.items():
         if len(items) < 3:
             continue
-        dates = [t.date for t in items]
-        gaps = [(b - a).days for a, b in zip(dates, dates[1:])]
+        # collapse charges within 3 days (double-rent months, split payments)
+        # into one event so they don't destroy the cadence measurement
+        dates = []
+        for t in items:
+            if not dates or (t.date - dates[-1]).days > 3:
+                dates.append(t.date)
+        if len(dates) < 3:
+            continue
+        # judge cadence on recent behaviour: old missed/irregular payments
+        # shouldn't disqualify something that's been regular for months
+        gaps = [(b - a).days for a, b in zip(dates, dates[1:])][-6:]
         avg_gap = sum(gaps) / len(gaps)
         if not (23 <= avg_gap <= 38 or 350 <= avg_gap <= 380 or 5 <= avg_gap <= 9):
+            continue
+        # subscriptions charge on a rhythm: an in-range *average* gap isn't
+        # enough (TfL/Amazon habits pass that), the gaps must also be regular
+        spread = (sum((g - avg_gap) ** 2 for g in gaps) / len(gaps)) ** 0.5
+        if spread > max(2.5, 0.3 * avg_gap):
             continue
         cadence = "weekly" if avg_gap < 10 else ("monthly" if avg_gap < 40 else "yearly")
         amount = -float(items[-1].amount)

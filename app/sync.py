@@ -41,7 +41,10 @@ def sync(db: Session) -> dict:
                     continue
                 # Emma overwrites its tables frequently; its fields win,
                 # but our refinement/override columns are never touched.
-                if getattr(t, k) != v:
+                cur = getattr(t, k)
+                if k == "amount":
+                    cur = float(cur)  # Numeric comes back as Decimal
+                if cur != v:
                     setattr(t, k, v)
                     changed = True
             if changed:

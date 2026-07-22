@@ -194,13 +194,16 @@ function initInsights() {
 }
 async function loadInsight(refresh) {
   const month = $("#ins-month").value;
-  $("#ins-content").innerHTML = `<p class="muted">${refresh ? "Asking Claude…" : "Loading…"}</p>`;
+  const btn = $("#ins-generate");
+  if (refresh) { btn.disabled = true; btn.textContent = "Generating… (~30s)"; }
+  $("#ins-content").innerHTML = `<p class="muted">${refresh ? "Claude is reading your month… this takes about 30 seconds." : "Loading…"}</p>`;
   try {
     const data = await api(`/api/insights/${month}${refresh ? "?refresh=1" : ""}`);
     if (data.content) $("#ins-content").innerHTML = marked.parse(data.content);
     else if (!refresh) $("#ins-content").innerHTML = `<p class="muted">No digest for ${month} yet — hit Generate.</p>`;
     else $("#ins-content").innerHTML = `<p class="muted">${data.error || "Failed"}</p>`;
   } catch (e) { $("#ins-content").innerHTML = `<p class="muted">Error: ${e.message}</p>`; }
+  finally { btn.disabled = false; btn.textContent = "Generate"; }
 }
 $("#ins-generate").addEventListener("click", () => loadInsight(true));
 $("#ins-month").addEventListener("change", () => loadInsight(false));

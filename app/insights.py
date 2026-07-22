@@ -16,6 +16,9 @@ def get_insight(db: Session, month: str, refresh: bool = False) -> dict:
     if cached and not refresh:
         return {"month": month, "content": cached.content, "model": cached.model,
                 "created_at": cached.created_at.isoformat(), "cached": True}
+    if not refresh:
+        # never generate implicitly -- Sonnet calls only on explicit Generate
+        return {"month": month, "content": None, "cached": False}
 
     if not os.environ.get("ANTHROPIC_API_KEY"):
         return {"month": month, "content": None, "error": "ANTHROPIC_API_KEY not set"}
