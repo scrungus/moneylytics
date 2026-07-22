@@ -68,7 +68,10 @@ async function loadOverview() {
 /* ---------- categories ---------- */
 async function loadCategories() {
   const month = $("#cat-month").value || undefined;
-  const data = await api(`/api/categories?months=13${month ? `&month=${month}` : ""}`);
+  const range = rangeOf("cat");
+  const data = await api(`/api/categories?months=13${range
+    ? `&date_from=${range.from}&date_to=${range.to}`
+    : month ? `&month=${month}` : ""}`);
   const months = Object.keys(data.trend).sort();
   const sel = data.selected;
   const selMonth = data.selected_month;
@@ -118,7 +121,10 @@ async function loadMerchants() {
       .forEach((c) => $("#mer-category").insertAdjacentHTML("beforeend", `<option>${c}</option>`));
   }
   const m = $("#mer-month").value, c = $("#mer-category").value;
-  const data = await api(`/api/merchants?limit=25${m ? `&month=${m}` : ""}${c ? `&category=${encodeURIComponent(c)}` : ""}`);
+  const range = rangeOf("mer");
+  const data = await api(`/api/merchants?limit=25${range
+    ? `&date_from=${range.from}&date_to=${range.to}`
+    : m ? `&month=${m}` : ""}${c ? `&category=${encodeURIComponent(c)}` : ""}`);
   const rows = data.slice().reverse();
   mkChart("chart-merchants").setOption({
     ...CHART_BASE,
@@ -157,7 +163,9 @@ async function loadTransactions(append = false) {
   }
   if (!append) txOffset = 0;
   const p = new URLSearchParams({ limit: 100, offset: txOffset });
-  if ($("#tx-month").value) p.set("month", $("#tx-month").value);
+  const range = rangeOf("tx");
+  if (range) { p.set("date_from", range.from); p.set("date_to", range.to); }
+  else if ($("#tx-month").value) p.set("month", $("#tx-month").value);
   if ($("#tx-category").value) p.set("category", $("#tx-category").value);
   if ($("#tx-search").value) p.set("q", $("#tx-search").value);
   const data = await api(`/api/transactions?${p}`);
@@ -214,6 +222,53 @@ function fillMonthSelect(sel, selected, withAll = false) {
   META.months.slice().reverse().forEach((m) =>
     sel.insertAdjacentHTML("beforeend", `<option ${m === selected ? "selected" : ""}>${m}</option>`));
 }
+
+// ◀ ▶ steppers around a month <select>. Options are newest-first, so
+// "back" (older) moves the index forward and vice versa.
+function addMonthArrows(selectId) {
+  const sel = document.getElementById(selectId);
+  const step = (dir) => {
+    if (sel.disabled) return; // a custom range is active
+    const opts = [...sel.options];
+    let i = sel.selectedIndex + dir;
+    if (opts[i] && opts[i].value === "") i += dir; // skip "All months"
+    if (i < 0 || i >= opts.length) return;
+    sel.selectedIndex = i;
+    sel.dispatchEvent(new Event("change"));
+  };
+  const back = document.createElement("button");
+  back.textContent = "◀"; back.className = "arrow"; back.title = "Previous month";
+  back.addEventListener("click", () => step(1));
+  const fwd = document.createElement("button");
+  fwd.textContent = "▶"; fwd.className = "arrow"; fwd.title = "Next month";
+  fwd.addEventListener("click", () => step(-1));
+  sel.before(back);
+  sel.after(fwd);
+}
+["cat-month", "mer-month", "tx-month", "ins-month"].forEach(addMonthArrows);
+
+// custom date range: when both dates are set it overrides the month select
+function rangeOf(prefix) {
+  const from = $(`#${prefix}-from`).value, to = $(`#${prefix}-to`).value;
+  return from && to ? { from, to } : null;
+}
+function wireRange(prefix, reload) {
+  const sync = () => {
+    const active = !!rangeOf(prefix);
+    $(`#${prefix}-month`).disabled = active;
+    reload();
+  };
+  $(`#${prefix}-from`).addEventListener("change", sync);
+  $(`#${prefix}-to`).addEventListener("change", sync);
+  $(`#${prefix}-clear`).addEventListener("click", () => {
+    $(`#${prefix}-from`).value = ""; $(`#${prefix}-to`).value = "";
+    $(`#${prefix}-month`).disabled = false;
+    reload();
+  });
+}
+wireRange("cat", () => loadCategories());
+wireRange("mer", () => loadMerchants());
+wireRange("tx", () => loadTransactions());
 
 $("#refresh-btn").addEventListener("click", async () => {
   $("#refresh-btn").classList.add("spinning");

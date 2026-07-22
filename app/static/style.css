@@ -54,6 +54,16 @@ select, input {
   border-radius: 8px; padding: 7px 10px; font-size: 14px;
 }
 input { min-width: 240px; }
+input[type="date"] { min-width: auto; color-scheme: dark; }
+.range { display: inline-flex; align-items: center; gap: 6px; margin-left: 12px; padding-left: 12px; border-left: 1px solid var(--border); }
+.range button { background: none; border: 1px solid var(--border); color: var(--muted); border-radius: 8px; padding: 5px 9px; cursor: pointer; }
+.range button:hover { color: var(--text); border-color: var(--accent); }
+button.arrow {
+  background: var(--panel2); border: 1px solid var(--border); color: var(--muted);
+  border-radius: 8px; padding: 6px 9px; cursor: pointer; font-size: 12px;
+}
+button.arrow:hover { color: var(--accent); border-color: var(--accent); }
+select:disabled { opacity: 0.4; }
 .controls button { border-color: var(--border); background: var(--panel2); color: var(--text); }
 .controls button:hover { border-color: var(--accent); }
 table { width: 100%; border-collapse: collapse; background: var(--panel); border-radius: 12px; overflow: hidden; }

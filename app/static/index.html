@@ -32,7 +32,10 @@
   </section>
 
   <section id="tab-categories" class="tab">
-    <div class="controls"><select id="cat-month"></select></div>
+    <div class="controls">
+      <select id="cat-month"></select>
+      <span class="range"><input type="date" id="cat-from"> <span class="muted">to</span> <input type="date" id="cat-to"> <button id="cat-clear" title="Clear range">&times;</button></span>
+    </div>
     <div class="split">
       <div class="chart" id="chart-cat-pie"></div>
       <div class="chart" id="chart-cat-trend"></div>
@@ -44,6 +47,7 @@
     <div class="controls">
       <select id="mer-month"></select>
       <select id="mer-category"><option value="">All categories</option></select>
+      <span class="range"><input type="date" id="mer-from"> <span class="muted">to</span> <input type="date" id="mer-to"> <button id="mer-clear" title="Clear range">&times;</button></span>
     </div>
     <div class="chart tall" id="chart-merchants"></div>
   </section>
@@ -57,6 +61,7 @@
     <div class="controls">
       <select id="tx-month"><option value="">All months</option></select>
       <select id="tx-category"><option value="">All categories</option></select>
+      <span class="range"><input type="date" id="tx-from"> <span class="muted">to</span> <input type="date" id="tx-to"> <button id="tx-clear" title="Clear range">&times;</button></span>
       <input id="tx-search" placeholder="Search merchant / notes&hellip;">
     </div>
     <table id="tx-table"><thead><tr><th>Date</th><th>Name</th><th>Amount</th><th>Category</th><th>Account</th></tr></thead><tbody></tbody></table>

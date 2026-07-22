@@ -58,21 +58,27 @@ def overview(months: int = 12, db: Session = Depends(get_db)):
 
 
 @app.get("/api/categories")
-def categories(month: str | None = None, months: int = 12, db: Session = Depends(get_db)):
-    return analytics.categories(db, month, months)
+def categories(month: str | None = None, months: int = 12,
+               date_from: str | None = None, date_to: str | None = None,
+               db: Session = Depends(get_db)):
+    return analytics.categories(db, month, months, date_from, date_to)
 
 
 @app.get("/api/merchants")
 def merchants(month: str | None = None, category: str | None = None, limit: int = 25,
+              date_from: str | None = None, date_to: str | None = None,
               db: Session = Depends(get_db)):
-    return analytics.merchants(db, month, category, limit)
+    return analytics.merchants(db, month, category, limit, date_from, date_to)
 
 
 @app.get("/api/transactions")
 def transactions(month: str | None = None, category: str | None = None,
                  merchant: str | None = None, q: str | None = None,
-                 limit: int = 100, offset: int = 0, db: Session = Depends(get_db)):
-    return analytics.transactions(db, month, category, merchant, q, limit, offset)
+                 limit: int = 100, offset: int = 0,
+                 date_from: str | None = None, date_to: str | None = None,
+                 db: Session = Depends(get_db)):
+    return analytics.transactions(db, month, category, merchant, q, limit, offset,
+                                  date_from, date_to)
 
 
 @app.get("/api/subscriptions")

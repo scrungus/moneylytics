@@ -55,7 +55,8 @@ def overview(db: Session, months: int = 12) -> list[dict]:
     return list(reversed(rows))
 
 
-def categories(db: Session, month: str | None = None, months: int = 12) -> dict:
+def categories(db: Session, month: str | None = None, months: int = 12,
+               date_from: str | None = None, date_to: str | None = None) -> dict:
     m = month_expr(db)
     q = (
         db.query(m.label("month"), EFFECTIVE_CAT, func.sum(-Transaction.amount).label("spend"))
@@ -68,13 +69,27 @@ def categories(db: Session, month: str | None = None, months: int = 12) -> dict:
         by_month[r.month][r.category] = round(float(r.spend or 0), 2)
     all_months = sorted(by_month)[-months:]
     trend = {mo: by_month[mo] for mo in all_months}
+
+    if date_from and date_to:
+        rq = (
+            db.query(EFFECTIVE_CAT, func.sum(-Transaction.amount).label("spend"))
+            .filter(EFFECTIVE_CAT.notin_(NON_SPEND_CATS))
+            .filter(Transaction.date >= date.fromisoformat(date_from))
+            .filter(Transaction.date <= date.fromisoformat(date_to))
+            .group_by(EFFECTIVE_CAT)
+        )
+        selected = {r.category: round(float(r.spend or 0), 2) for r in rq if (r.spend or 0) > 0}
+        return {"trend": trend, "selected_month": f"{date_from} → {date_to}",
+                "selected": selected, "range": True}
+
     selected = trend.get(month) if month else (trend[all_months[-1]] if all_months else {})
     return {"trend": trend, "selected_month": month or (all_months[-1] if all_months else None),
             "selected": selected or {}}
 
 
 def merchants(db: Session, month: str | None = None, category: str | None = None,
-              limit: int = 25) -> list[dict]:
+              limit: int = 25, date_from: str | None = None,
+              date_to: str | None = None) -> list[dict]:
     m = month_expr(db)
     key = func.lower(func.coalesce(
         func.nullif(Transaction.custom_name, ""),
@@ -86,7 +101,10 @@ def merchants(db: Session, month: str | None = None, category: str | None = None
                  func.count().label("count"))
         .filter(EFFECTIVE_CAT.notin_(NON_SPEND_CATS))
     )
-    if month:
+    if date_from and date_to:
+        q = q.filter(Transaction.date >= date.fromisoformat(date_from),
+                     Transaction.date <= date.fromisoformat(date_to))
+    elif month:
         q = q.filter(m == month)
     if category:
         q = q.filter(EFFECTIVE_CAT == category)
@@ -102,10 +120,14 @@ def merchants(db: Session, month: str | None = None, category: str | None = None
 
 def transactions(db: Session, month: str | None = None, category: str | None = None,
                  merchant: str | None = None, q: str | None = None,
-                 limit: int = 100, offset: int = 0) -> dict:
+                 limit: int = 100, offset: int = 0,
+                 date_from: str | None = None, date_to: str | None = None) -> dict:
     m = month_expr(db)
     query = db.query(Transaction, EFFECTIVE_CAT)
-    if month:
+    if date_from and date_to:
+        query = query.filter(Transaction.date >= date.fromisoformat(date_from),
+                             Transaction.date <= date.fromisoformat(date_to))
+    elif month:
         query = query.filter(m == month)
     if category:
         query = query.filter(EFFECTIVE_CAT == category)
