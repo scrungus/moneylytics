@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>moneylytics</title>
+<link rel="stylesheet" href="/static/style.css">
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+</head>
+<body>
+<header>
+  <h1>money<span>lytics</span></h1>
+  <nav id="tabs">
+    <button data-tab="overview" class="active">Overview</button>
+    <button data-tab="categories">Categories</button>
+    <button data-tab="merchants">Merchants</button>
+    <button data-tab="subscriptions">Subscriptions</button>
+    <button data-tab="transactions">Transactions</button>
+    <button data-tab="insights">Insights</button>
+  </nav>
+  <div id="syncbox">
+    <span id="last-sync"></span>
+    <button id="refresh-btn" title="Re-pull the Emma sheet">&#8635;</button>
+  </div>
+</header>
+
+<main>
+  <section id="tab-overview" class="tab active">
+    <div id="cards" class="cards"></div>
+    <div class="chart tall" id="chart-overview"></div>
+  </section>
+
+  <section id="tab-categories" class="tab">
+    <div class="controls"><select id="cat-month"></select></div>
+    <div class="split">
+      <div class="chart" id="chart-cat-pie"></div>
+      <div class="chart" id="chart-cat-trend"></div>
+    </div>
+    <table id="cat-table"><thead><tr><th>Category</th><th>This month</th><th>Prev month</th><th>&Delta;</th></tr></thead><tbody></tbody></table>
+  </section>
+
+  <section id="tab-merchants" class="tab">
+    <div class="controls">
+      <select id="mer-month"></select>
+      <select id="mer-category"><option value="">All categories</option></select>
+    </div>
+    <div class="chart tall" id="chart-merchants"></div>
+  </section>
+
+  <section id="tab-subscriptions" class="tab">
+    <div id="sub-summary" class="cards"></div>
+    <table id="sub-table"><thead><tr><th>Merchant</th><th>Amount</th><th>Cadence</th><th>&asymp; Monthly</th><th>Paid</th><th>Last paid</th><th>Status</th></tr></thead><tbody></tbody></table>
+  </section>
+
+  <section id="tab-transactions" class="tab">
+    <div class="controls">
+      <select id="tx-month"><option value="">All months</option></select>
+      <select id="tx-category"><option value="">All categories</option></select>
+      <input id="tx-search" placeholder="Search merchant / notes&hellip;">
+    </div>
+    <table id="tx-table"><thead><tr><th>Date</th><th>Name</th><th>Amount</th><th>Category</th><th>Account</th></tr></thead><tbody></tbody></table>
+    <div class="controls"><button id="tx-more">Load more</button><span id="tx-count"></span></div>
+  </section>
+
+  <section id="tab-insights" class="tab">
+    <div class="controls">
+      <select id="ins-month"></select>
+      <button id="ins-generate">Generate</button>
+    </div>
+    <article id="ins-content" class="prose"><p class="muted">Pick a month and hit Generate — Claude writes a digest of what changed.</p></article>
+  </section>
+</main>
+<script src="/static/app.js"></script>
+</body>
+</html>
